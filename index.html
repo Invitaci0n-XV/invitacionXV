@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Invitación XV Interactiva</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      background: #111;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .container {
+      position: relative;
+      width: 100vw;
+      max-width: 400px;
+      aspect-ratio: 9/16;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      background: #000;
+      border-radius: 16px;
+      pointer-events: none;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    video::-webkit-media-controls {
+      display: none !important;
+    }
+    .arrow-btn {
+      position: absolute;
+      bottom: 8vw;
+      width: 44px;
+      height: 44px;
+      background: rgba(255,255,255,0.8);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      border: none;
+      cursor: pointer;
+      z-index: 10;
+      transition: opacity 0.3s;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .arrow-btn.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .arrow-btn svg {
+      width: 28px;
+      height: 28px;
+      fill: #222;
+    }
+    #arrow-right { right: 10vw; }
+    #arrow-left  { left: 10vw; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <video id="videoXV" preload="auto" playsinline muted tabindex="-1">
+      <source src="invitacion-xv.mp4" type="video/mp4">
+    </video>
+    <button id="arrow-right" class="arrow-btn" aria-label="Avanzar">
+      <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <button id="arrow-left" class="arrow-btn" aria-label="Retroceder">
+      <svg viewBox="0 0 24 24"><path d="M16 19V5l-11 7z"/></svg>
+    </button>
+  </div>
+  <script>
+    // Pausas actualizadas
+    const PAUSAS_DERECHA = [16, 18, 20];
+    const PAUSAS_IZQUIERDA = [22, 24];
+
+    const video = document.getElementById('videoXV');
+    const rightArrow = document.getElementById('arrow-right');
+    const leftArrow = document.getElementById('arrow-left');
+
+    let etapa = 0; // 0: inicio, 1: click para avanzar, 2: derecha, 3: izquierda
+    let derechaIndex = 0;
+    let izquierdaIndex = 0;
+    let esperandoClick = false;
+    let clicksDerechaCompletos = false;
+    let duracionFinal = 0;
+
+    // ---- Al cargar, reproduce y pausa en 2s ----
+    video.addEventListener('loadedmetadata', () => {
+      duracionFinal = video.duration;
+      video.currentTime = 0;
+      video.play();
+      // Pausa en el segundo 2
+      video.addEventListener('timeupdate', function pausaEn2() {
+        if (video.currentTime >= 2 && etapa === 0) {
+          video.pause();
+          etapa = 1;
+          esperandoClick = true;
+          video.removeEventListener('timeupdate', pausaEn2);
+        }
+      });
+    });
+
+    // ---- Espera click para avanzar hasta 15s ----
+    document.body.addEventListener('click', function handleFirstClick(e) {
+      if (etapa === 1 && esperandoClick) {
+        esperandoClick = false;
+        etapa = 2;
+        derechaIndex = 0;
+        video.play();
+        // Pausa en el segundo 15
+        video.addEventListener('timeupdate', function pausaEn15() {
+          if (video.currentTime >= 15 && etapa === 2 && derechaIndex === 0) {
+            video.pause();
+            rightArrow.classList.add('visible');
+            video.removeEventListener('timeupdate', pausaEn15);
+          }
+        });
+        document.body.removeEventListener('click', handleFirstClick);
+      }
+    });
+
+    // ---- Secuencia clicks DERECHA ----
+    rightArrow.addEventListener('click', () => {
+      if (etapa === 2 && derechaIndex < PAUSAS_DERECHA.length) {
+        derechaIndex++;
+        rightArrow.classList.remove('visible');
+        video.play();
+        // Pausa en el siguiente tiempo (16, 18, 20)
+        video.addEventListener('timeupdate', function pausaSecuenciaDerecha() {
+          if (video.currentTime >= PAUSAS_DERECHA[derechaIndex - 1]) {
+            video.pause();
+            if (derechaIndex < PAUSAS_DERECHA.length) {
+              rightArrow.classList.add('visible');
+            } else {
+              leftArrow.classList.add('visible');
+              rightArrow.classList.remove('visible');
+              etapa = 3;
+              izquierdaIndex = 0;
+              clicksDerechaCompletos = true;
+            }
+            video.removeEventListener('timeupdate', pausaSecuenciaDerecha);
+          }
+        });
+      }
+    });
+
+    // ---- Secuencia clicks IZQUIERDA ----
+    leftArrow.addEventListener('click', () => {
+      if (etapa === 3 && izquierdaIndex <= PAUSAS_IZQUIERDA.length) {
+        leftArrow.classList.remove('visible');
+        if (izquierdaIndex < PAUSAS_IZQUIERDA.length) {
+          video.play();
+          video.addEventListener('timeupdate', function pausaSecuenciaIzquierda() {
+            if (video.currentTime >= PAUSAS_IZQUIERDA[izquierdaIndex]) {
+              video.pause();
+              izquierdaIndex++;
+              if (izquierdaIndex < PAUSAS_IZQUIERDA.length) {
+                leftArrow.classList.add('visible');
+              } else {
+                leftArrow.classList.add('visible');
+              }
+              video.removeEventListener('timeupdate', pausaSecuenciaIzquierda);
+            }
+          });
+        } else {
+          // Último click izquierdo: avanzar hasta final y reiniciar
+          video.play();
+          video.addEventListener('timeupdate', function pausaFinal() {
+            if (video.currentTime >= video.duration - 0.1) {
+              video.pause();
+              // Reiniciar ciclo desde 15s, solo flecha derecha visible
+              setTimeout(() => {
+                video.currentTime = 15;
+                etapa = 2;
+                derechaIndex = 0;
+                izquierdaIndex = 0;
+                clicksDerechaCompletos = false;
+                rightArrow.classList.add('visible');
+                leftArrow.classList.remove('visible');
+                video.pause();
+              }, 600);
+              video.removeEventListener('timeupdate', pausaFinal);
+            }
+          });
+        }
+      }
+    });
+
+    // Oculta controles nativos del video
+    video.controls = false;
+    video.setAttribute('controls', false);
+    video.muted = true;
+    video.setAttribute('muted', 'muted');
+    video.setAttribute('playsinline', '');
+
+    setTimeout(() => {
+      video.removeAttribute('controls');
+    }, 100);
+  </script>
+</body>
+</html>
